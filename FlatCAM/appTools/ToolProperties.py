@@ -562,42 +562,58 @@ class Properties(AppTool):
 		self.treeWidget.addChild(separator, [''])
 
 	def show_area_chull(self, area, length, width, chull_area, copper_area, location):
+		# Guard against the case where the properties UI has been replaced (e.g., by
+		# entering an editor) before the worker thread's calculations_finished signal
+		# is delivered. The treeWidget or the location item may have been destroyed,
+		# and accessing a deleted Qt C++ object causes a segfault on macOS.
+		if self.app.call_source != 'app':
+			return
 
-		# add dimensions
-		self.treeWidget.addChild(
-			location,
-			['%s:' % _('Length'), '%.*f %s' % (self.decimals, length, self.app.defaults['units'].lower())],
-			True
-		)
-		self.treeWidget.addChild(
-			location,
-			['%s:' % _('Width'), '%.*f %s' % (self.decimals, width, self.app.defaults['units'].lower())],
-			True
-		)
+		try:
+			import sip
+			if sip.isdeleted(self.treeWidget) or sip.isdeleted(location):
+				return
+		except Exception:
+			return
 
-		# add box area
-		if self.app.defaults['units'].lower() == 'mm':
-			self.treeWidget.addChild(location, ['%s:' % _('Box Area'), '%.*f %s' % (self.decimals, area, 'cm2')], True)
+		try:
+			# add dimensions
 			self.treeWidget.addChild(
 				location,
-				['%s:' % _('Convex_Hull Area'), '%.*f %s' % (self.decimals, chull_area, 'cm2')],
+				['%s:' % _('Length'), '%.*f %s' % (self.decimals, length, self.app.defaults['units'].lower())],
+				True
+			)
+			self.treeWidget.addChild(
+				location,
+				['%s:' % _('Width'), '%.*f %s' % (self.decimals, width, self.app.defaults['units'].lower())],
 				True
 			)
 
-		else:
-			self.treeWidget.addChild(location, ['%s:' % _('Box Area'), '%.*f %s' % (self.decimals, area, 'in2')], True)
-			self.treeWidget.addChild(
-				location,
-				['%s:' % _('Convex_Hull Area'), '%.*f %s' % (self.decimals, chull_area, 'in2')],
-				True
-			)
+			# add box area
+			if self.app.defaults['units'].lower() == 'mm':
+				self.treeWidget.addChild(location, ['%s:' % _('Box Area'), '%.*f %s' % (self.decimals, area, 'cm2')], True)
+				self.treeWidget.addChild(
+					location,
+					['%s:' % _('Convex_Hull Area'), '%.*f %s' % (self.decimals, chull_area, 'cm2')],
+					True
+				)
 
-		# add copper area
-		if self.app.defaults['units'].lower() == 'mm':
-			self.treeWidget.addChild(
-				location, ['%s:' % _('Copper Area'), '%.*f %s' % (self.decimals, copper_area, 'cm2')], True)
-		else:
-			self.treeWidget.addChild(
-				location, ['%s:' % _('Copper Area'), '%.*f %s' % (self.decimals, copper_area, 'in2')], True)
+			else:
+				self.treeWidget.addChild(location, ['%s:' % _('Box Area'), '%.*f %s' % (self.decimals, area, 'in2')], True)
+				self.treeWidget.addChild(
+					location,
+					['%s:' % _('Convex_Hull Area'), '%.*f %s' % (self.decimals, chull_area, 'in2')],
+					True
+				)
+
+			# add copper area
+			if self.app.defaults['units'].lower() == 'mm':
+				self.treeWidget.addChild(
+					location, ['%s:' % _('Copper Area'), '%.*f %s' % (self.decimals, copper_area, 'cm2')], True)
+			else:
+				self.treeWidget.addChild(
+					location, ['%s:' % _('Copper Area'), '%.*f %s' % (self.decimals, copper_area, 'in2')], True)
+		except Exception as e:
+			log.debug("ToolProperties.show_area_chull() failed: %s" % str(e))
 
 # end of file

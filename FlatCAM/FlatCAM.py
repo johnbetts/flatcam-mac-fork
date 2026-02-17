@@ -1,7 +1,13 @@
 import sys
 import os
 import signal
+import faulthandler
 from multiprocessing import freeze_support
+
+# Enable faulthandler to get a Python traceback on segfaults.
+# This prints the call stack to stderr when a segfault occurs,
+# which is critical for debugging crashes on macOS.
+faulthandler.enable()
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 # FlatCAM imports

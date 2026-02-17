@@ -2342,11 +2342,10 @@ class App(QtCore.QObject):
 
 		# In legacy (matplotlib) mode, suppress intermediate canvas.draw() calls during
 		# editor activation to prevent segfaults from rapid successive renders on macOS
-		# Qt5Agg backend. A single draw_idle() is done after all setup is complete.
+		# Qt5Agg backend. A single synchronous draw() is done after all setup is complete.
 		use_batch_draw = self.is_legacy is True and hasattr(self, 'plotcanvas')
 		if use_batch_draw:
 			self.plotcanvas._batch_draw = True
-
 		try:
 			if isinstance(edited_object, GeometryObject):
 				# store the Geometry Editor Toolbar visibility before entering in the Editor
@@ -2422,9 +2421,17 @@ class App(QtCore.QObject):
 		finally:
 			if use_batch_draw:
 				self.plotcanvas._batch_draw = False
-
 		# make sure that we can't select another object while in Editor Mode:
 		self.ui.project_frame.setDisabled(True)
+
+		# hide the Tools Toolbar BEFORE any canvas drawing, so that any layout
+		# changes from hiding the toolbar settle before we touch the canvas
+		tools_tb = self.ui.toolbartools
+		if tools_tb.isVisible():
+			self.old_state_of_tools_toolbar = True
+			tools_tb.hide()
+		else:
+			self.old_state_of_tools_toolbar = False
 
 		for idx in range(self.ui.notebook.count()):
 			# store the Properties Tab text color here and change the color and text
@@ -2445,25 +2452,22 @@ class App(QtCore.QObject):
 			import traceback
 			self.log.error(traceback.format_exc())
 
-		# hide the Tools Toolbar
-		tools_tb = self.ui.toolbartools
-		if tools_tb.isVisible():
-			self.old_state_of_tools_toolbar = True
-			tools_tb.hide()
-		else:
-			self.old_state_of_tools_toolbar = False
-
 		self.ui.plot_tab_area.setTabText(0, _("EDITOR Area"))
 		self.ui.plot_tab_area.protectTab(0)
 		self.log.debug("######################### Starting the EDITOR ################################")
-		# Temporarily disabled signal emit that causes crashes on macOS
-		# self.inform.emit('[WARNING_NOTCL] %s' % _("Editor is activated ..."))
 
-		# Perform a single deferred canvas draw now that all editor setup is complete.
+		# Perform a single synchronous canvas draw now that all editor setup is complete.
 		# This replaces the ~12+ intermediate canvas.draw() calls that were suppressed
 		# during batch draw mode, rendering only the final consistent state.
+		# NOTE: We use a synchronous draw() rather than draw_idle() to avoid a segfault
+		# on macOS where the deferred timer callback from draw_idle() can crash when
+		# it fires after the function returns and layout changes have triggered
+		# pending resize/repaint events in the Cocoa event loop.
 		if self.is_legacy is True and hasattr(self, 'plotcanvas'):
-			self.plotcanvas.canvas.draw_idle()
+			try:
+				self.plotcanvas.canvas.draw()
+			except Exception as e:
+				self.log.error("object2editor() canvas.draw() failed: %s" % str(e))
 
 		self.should_we_save = True
 

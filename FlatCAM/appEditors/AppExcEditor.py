@@ -2185,7 +2185,14 @@ class AppExcEditor(QtCore.QObject):
 
 		# self.ui.tools_table_exc.setSortingEnabled(True)
 		# sort by tool diameter
+		# Block signals during sort to suppress deferred itemChanged emissions on macOS.
+		# For first_run, signals remain blocked until the QTimer callback in edit_fcexcellon()
+		# flushes pending events and unblocks. For non-first_run, unblock immediately since
+		# signals are already disconnected and will be reconnected below.
+		self.ui.tools_table_exc.blockSignals(True)
 		self.ui.tools_table_exc.sortItems(1)
+		if not first_run:
+			self.ui.tools_table_exc.blockSignals(False)
 
 		# After sorting, to display also the number of drills in the right row we need to update self.initial_rows dict
 		# with the new order. Of course the last 2 rows in the tool table are just for display therefore we don't
@@ -2205,34 +2212,40 @@ class AppExcEditor(QtCore.QObject):
 		except Exception as e:
 			self.app.log.error("clearSelection() failed: %s" % str(e))
 
-		# Remove anything else in the GUI Selected Tab
+		# Remove anything else in the GUI Selected Tab and put ourselves in.
+		# Skip if exc_edit_widget is ALREADY the current widget — on macOS, deferred
+		# itemChanged signals from sortItems() can trigger on_tool_edit() → build_ui(),
+		# and calling takeWidget() during that spurious re-entry causes a segfault.
 		try:
-			self.app.ui.properties_scroll_area.takeWidget()
+			current_widget = self.app.ui.properties_scroll_area.widget()
+			if current_widget is not self.ui.exc_edit_widget:
+				if current_widget is not None:
+					self.app.ui.properties_scroll_area.takeWidget()
+				self.app.ui.properties_scroll_area.setWidget(self.ui.exc_edit_widget)
 		except Exception as e:
-			self.app.log.error("takeWidget() failed: %s" % str(e))
-		
-		# Put ourselves in the GUI Properties Tab
-		try:
-			self.app.ui.properties_scroll_area.setWidget(self.ui.exc_edit_widget)
-		except Exception as e:
-			self.app.log.error("setWidget() failed: %s" % str(e))
-		
+			self.app.log.error("properties_scroll_area widget swap failed: %s" % str(e))
+
 		# Switch notebook to Properties page
 		try:
 			self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
 		except Exception as e:
 			self.app.log.error("setCurrentWidget() failed: %s" % str(e))
 
-		# we reactivate the signals after the after the tool adding as we don't need to see the tool been populated
-		try:
-			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
-		except Exception as e:
-			self.app.log.error("itemChanged.connect() failed: %s" % str(e))
-		
-		try:
-			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
-		except Exception as e:
-			self.app.log.error("cellPressed.connect() failed: %s" % str(e))
+		# We reactivate the signals after the tool adding as we don't need to see the tool being populated.
+		# When first_run=True (editor initialization), we SKIP reconnecting here because sortItems()
+		# above can produce deferred itemChanged signals on macOS that fire after object2editor()
+		# returns to the event loop, triggering on_tool_edit() -> build_ui() -> takeWidget() segfault.
+		# In that case, the connection is deferred via QTimer.singleShot in edit_fcexcellon().
+		if first_run is not True:
+			try:
+				self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			except Exception as e:
+				self.app.log.error("itemChanged.connect() failed: %s" % str(e))
+
+			try:
+				self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+			except Exception as e:
+				self.app.log.error("cellPressed.connect() failed: %s" % str(e))
 
 	def on_tool_add(self, tooldia=None):
 		self.is_modified = True
@@ -2349,7 +2362,6 @@ class AppExcEditor(QtCore.QObject):
 			pass
 		# self.ui.tools_table_exc.selectionModel().currentChanged.disconnect()
 
-		self.is_modified = True
 		# new_dia = None
 
 		current_item = self.ui.tools_table_exc.currentItem()
@@ -2378,6 +2390,15 @@ class AppExcEditor(QtCore.QObject):
 			return
 
 		old_dia = self.tool2tooldia[key_in_tool2tooldia]
+
+		# If diameter hasn't actually changed, this is a spurious signal (e.g. from
+		# deferred sortItems events on macOS). Reconnect signals and return.
+		if new_dia == old_dia:
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+			return
+
+		self.is_modified = True
 
 		# SOURCE storage
 		source_storage = self.storage_dict[old_dia]
@@ -2850,8 +2871,24 @@ class AppExcEditor(QtCore.QObject):
 			import traceback
 			self.app.log.error(traceback.format_exc())
 
-		# we activate this after the initial build as we don't need to see the tool been populated
-		self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+		# We activate the table signals AFTER the initial build so we don't see the tool being
+		# populated. We use QTimer.singleShot(0, ...) to defer the connections so that any
+		# pending/deferred itemChanged signals from sortItems() in build_ui(first_run=True)
+		# are processed and discarded by the event loop BEFORE we start listening for user edits.
+		# Without this deferral, a spurious itemChanged signal can trigger on_tool_edit() after
+		# object2editor() returns, causing a segfault in build_ui() -> takeWidget() on macOS.
+		from PyQt5.QtCore import QTimer
+		from PyQt5.QtWidgets import QApplication
+
+		def _connect_table_signals():
+			# Flush any deferred events (from sortItems) while signals are still
+			# blocked, then unblock and connect for future user edits.
+			QApplication.processEvents()
+			self.ui.tools_table_exc.blockSignals(False)
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+
+		QTimer.singleShot(0, _connect_table_signals)
 
 		# build the geometry for each tool-diameter, each drill will be represented by a '+' symbol
 		# and then add it to the storage elements (each storage elements is a member of a list
