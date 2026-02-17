@@ -326,9 +326,9 @@ class MainGUI(QtWidgets.QMainWindow):
 		# Quit
 		self.menufile_exit = QtWidgets.QAction(
 			QtGui.QIcon(':/images/power16.png'),
-			'%s\t%s' % (_('Exit'), ''), self)
-		# exitAction.setShortcut('Ctrl+Q')
-		# exitAction.setStatusTip('Exit application')
+			_('Exit'), self)
+		self.menufile_exit.setShortcut('Ctrl+Q')
+		self.menufile_exit.setMenuRole(QtWidgets.QAction.QuitRole)
 		self.menufile.addAction(self.menufile_exit)
 
 		# ########################################################################
@@ -1748,6 +1748,9 @@ class MainGUI(QtWidgets.QMainWindow):
 		self.app_icon.addFile(':/images/flatcam_icon128.png', QtCore.QSize(128, 128))
 		self.app_icon.addFile(':/images/flatcam_icon256.png', QtCore.QSize(256, 256))
 		self.setWindowIcon(self.app_icon)
+		# Also set on QApplication so macOS uses it for the dock icon
+		# (setWindowIcon on QMainWindow alone only affects the title bar)
+		QtWidgets.QApplication.instance().setWindowIcon(self.app_icon)
 
 		self.setGeometry(100, 100, 1024, 650)
 		self.setWindowTitle('FlatCAM %s %s - %s' %
@@ -2494,13 +2497,9 @@ class MainGUI(QtWidgets.QMainWindow):
 				if key == QtCore.Qt.Key_O:
 					self.app.f_handlers.on_file_openproject(signal=None)
 
-				# Open Project
-				if key == QtCore.Qt.Key_P:
-					self.app.f_handlers.on_file_save_objects_pdf(use_thread=True)
-
-				# PDF Import
-				if key == QtCore.Qt.Key_Q:
-					self.app.pdf_tool.run()
+				# Ctrl+P and Ctrl+Q removed: on macOS Cmd+Q must quit the app (handled
+				# natively by Qt), and Ctrl+P was incorrectly bound to PDF save instead
+				# of the commented "Open Project". PDF import/save remain in the menus.
 
 				# Save Project
 				if key == QtCore.Qt.Key_S:
