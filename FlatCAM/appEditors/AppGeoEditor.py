@@ -1575,8 +1575,13 @@ class DrawToolShape(object):
 
 		# Iterable: descend into each item.
 		try:
-			for subo in o:
-				pts += DrawToolShape.get_pts(subo)
+			# Use .geoms for multi-part geometries to avoid Shapely deprecation warning
+			if hasattr(o, 'geoms'):
+				for subo in o.geoms:
+					pts += DrawToolShape.get_pts(subo)
+			else:
+				for subo in o:
+					pts += DrawToolShape.get_pts(subo)
 
 		# Non-iterable
 		except TypeError:

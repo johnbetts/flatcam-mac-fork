@@ -77,6 +77,9 @@ class RadioSet(QtWidgets.QWidget):
 	def on_toggle(self):
 		# log.debug("Radio toggled")
 		radio = self.sender()
+		if radio is None or not hasattr(radio, 'isChecked'):
+			# Sender is not a radio button, ignore
+			return
 		if radio.isChecked():
 			self.group_toggle_fn()
 			ret_val = str(self.get_value())

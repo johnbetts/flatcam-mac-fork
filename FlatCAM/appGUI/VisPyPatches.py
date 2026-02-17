@@ -29,8 +29,25 @@ def apply_patches():
 	}
 	"""
 
-	markers._marker_dict['++'] = cross_lines
-	markers.marker_types = tuple(sorted(list(markers._marker_dict.copy().keys())))
+	#markers._marker_dict['++'] = cross_lines
+	# VisPy compatibility: marker registry changed/hidden across versions
+	if hasattr(markers, "_marker_dict"):
+    		markers._marker_dict["++"] = cross_lines
+	elif hasattr(markers, "marker_dict"):
+    		markers.marker_dict["++"] = cross_lines
+	else:
+    		# Newer VisPy versions don't expose a marker registry here.
+    		# FlatCAM can still run; we just skip adding the custom '++' marker.
+    		pass
+	#markers.marker_types = tuple(sorted(list(markers._marker_dict.copy().keys())))
+	# VisPy compatibility: marker registry changed/hidden across versions
+	if hasattr(markers, "_marker_dict"):
+    		markers.marker_types = tuple(sorted(markers._marker_dict.keys()))
+	elif hasattr(markers, "marker_dict"):
+    		markers.marker_types = tuple(sorted(markers.marker_dict.keys()))
+	else:
+    		# No accessible marker registry; leave marker_types unchanged
+    		pass
 
 	# # Add clear_data method to LineVisual to have possibility of clearing data
 	# def clear_data(self):

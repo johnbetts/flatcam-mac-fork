@@ -56,9 +56,6 @@ from appCommon.Common import ExclusionAreas
 from Bookmark import BookmarkManager
 from appDatabase import ToolsDB2
 
-from vispy.gloo.util import _screenshot
-from vispy.io import write_png
-
 from appLogger import getLogger
 
 # FlatCAM defaults (preferences)
@@ -84,7 +81,6 @@ from appParsers.ParseGerber import Gerber
 from camlib import to_dict, dict2obj, ET, ParseError, Geometry, CNCjob
 
 # FlatCAM appGUI
-from appGUI.PlotCanvas import *
 from appGUI.PlotCanvasLegacy import *
 from appGUI.MainGUI import *
 from appGUI.GUIElements import FCFileSaveDialog, message_dialog, FlatCAMSystemTray, FCInputDialogSlider
@@ -95,7 +91,6 @@ from appPreProcessor import load_preprocessors
 # FlatCAM appEditors
 from appEditors.AppGeoEditor import AppGeoEditor
 from appEditors.AppExcEditor import AppExcEditor
-from appEditors.AppGerberEditor import AppGerberEditor
 from appEditors.AppTextEditor import AppTextEditor
 from appEditors.appGCodeEditor import AppGCodeEditor
 from appParsers.ParseHPGL2 import HPGL2
@@ -440,7 +435,10 @@ class App(QtCore.QObject):
 		# ###########################################################################################################
 		# ###################################### CREATE MULTIPROCESSING POOL #######################################
 		# ###########################################################################################################
-		self.pool = Pool()
+		# Disabled due to macOS arm64 segfault issues - using spawn context causes serialization problems
+		# ctx = get_context('spawn')
+		# self.pool = ctx.Pool()
+		self.pool = None
 
 		# ###########################################################################################################
 		# ###################################### Clear GUI Settings - once at first start ###########################
@@ -672,6 +670,9 @@ class App(QtCore.QObject):
 		# determine if the Legacy Graphic Engine is to be used or the OpenGL one
 		if self.defaults["global_graphic_engine"] == '3D':
 			self.is_legacy = False
+			# VisPy is problematic on macOS arm64 - disable for now
+			# from appGUI import VisPyPatches
+			# VisPyPatches.apply_patches()
 		else:
 			self.is_legacy = True
 
@@ -1231,6 +1232,7 @@ class App(QtCore.QObject):
 			self.log.debug("app_Main.__init__() --> Excellon Editor Error: %s" % str(es))
 
 		try:
+			from appEditors.AppGerberEditor import AppGerberEditor
 			self.grb_editor = AppGerberEditor(self)
 		except Exception as es:
 			self.log.debug("app_Main.__init__() --> Gerber Editor Error: %s" % str(es))
@@ -1884,10 +1886,10 @@ class App(QtCore.QObject):
 
 		:return: None
 		"""
-		self.pool.close()
-
-		self.pool = Pool()
-		self.pool_recreated.emit(self.pool)
+		if self.pool:
+			self.pool.close()
+			self.pool = Pool()
+			self.pool_recreated.emit(self.pool)
 
 		gc.collect()
 
@@ -2425,7 +2427,12 @@ class App(QtCore.QObject):
 				self.ui.notebook.tabBar.setTabEnabled(idx, False)
 
 		# delete any selection shape that might be active as they are not relevant in Editor
-		self.delete_selection_shape()
+		try:
+			self.delete_selection_shape()
+		except Exception as e:
+			self.log.error("delete_selection_shape() failed: %s" % str(e))
+			import traceback
+			self.log.error(traceback.format_exc())
 
 		# hide the Tools Toolbar
 		tools_tb = self.ui.toolbartools
@@ -2438,7 +2445,8 @@ class App(QtCore.QObject):
 		self.ui.plot_tab_area.setTabText(0, _("EDITOR Area"))
 		self.ui.plot_tab_area.protectTab(0)
 		self.log.debug("######################### Starting the EDITOR ################################")
-		self.inform.emit('[WARNING_NOTCL] %s' % _("Editor is activated ..."))
+		# Temporarily disabled signal emit that causes crashes on macOS
+		# self.inform.emit('[WARNING_NOTCL] %s' % _("Editor is activated ..."))
 
 		self.should_we_save = True
 
@@ -7692,6 +7700,7 @@ class App(QtCore.QObject):
 			self.plotcanvas = PlotCanvasLegacy(plot_container, self)
 		else:
 			try:
+				from appGUI.PlotCanvas import PlotCanvas
 				self.plotcanvas = PlotCanvas(plot_container, self)
 			except Exception as er:
 				msg_txt = traceback.format_exc()
@@ -8559,6 +8568,7 @@ class MenuFileHandlers(QtCore.QObject):
 
 		data = None
 		if self.app.is_legacy is False:
+			from vispy.gloo.util import _screenshot
 			image = _screenshot(alpha=False)
 			data = np.asarray(image)
 			if not data.ndim == 3 and data.shape[-1] in (3, 4):
@@ -8583,6 +8593,7 @@ class MenuFileHandlers(QtCore.QObject):
 			return
 		else:
 			if self.app.is_legacy is False:
+				from vispy.io import write_png
 				write_png(filename, data)
 			else:
 				self.app.plotcanvas.figure.savefig(filename)
@@ -9021,6 +9032,7 @@ class MenuFileHandlers(QtCore.QObject):
 			# ## EDITOR section
 			self.app.geo_editor = AppGeoEditor(self.app)
 			self.app.exc_editor = AppExcEditor(self.app)
+			from appEditors.AppGerberEditor import AppGerberEditor
 			self.app.grb_editor = AppGerberEditor(self.app)
 
 		# Clear pool

@@ -15,7 +15,6 @@ from PyQt5 import QtCore
 from shapely.geometry import Polygon, Point, LineString
 from shapely.ops import unary_union
 
-from appGUI.VisPyVisuals import ShapeCollection
 from appTool import AppTool
 
 from copy import deepcopy
@@ -233,6 +232,7 @@ class ExclusionAreas(QtCore.QObject):
 		# VisPy visuals
 		if self.app.is_legacy is False:
 			try:
+				from appGUI.VisPyVisuals import ShapeCollection
 				self.exclusion_shapes = ShapeCollection(parent=self.app.plotcanvas.view.scene, layers=1)
 			except AttributeError:
 				self.exclusion_shapes = None

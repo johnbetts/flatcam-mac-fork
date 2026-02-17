@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import QApplication
 # FlatCAM imports
 from appLogger import getLogger
 from app_Main import App
-from appGUI import VisPyPatches
 from settings import hdpi, style
 
 
@@ -58,7 +57,6 @@ def main():
 	log = getLogger()
 
 	debug_trace()
-	VisPyPatches.apply_patches()
 
 	# apply High DPI support
 	if(hdpi_support := hdpi()):

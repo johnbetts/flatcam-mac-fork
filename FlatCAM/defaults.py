@@ -80,7 +80,7 @@ class FlatCAMDefaults:
 		"units": "MM",
 		"decimals_inch": 4,
 		"decimals_metric": 4,
-		"global_graphic_engine": '3D',
+		"global_graphic_engine": '2D',
 		"global_app_level": 'b',
 
 		"global_portable": False,

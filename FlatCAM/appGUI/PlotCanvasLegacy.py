@@ -1327,17 +1327,28 @@ class ShapeCollectionLegacy:
 		:param update:
 		:return: None
 		"""
-		self._shapes.clear()
+		try:
+			self._shapes.clear()
+		except Exception as e:
+			log.debug("ShapeCollectionLegacy.clear() _shapes.clear() failed: %s" % str(e))
+		
 		self.shape_id = 0
 
-		self.axes.cla()
+		try:
+			self.axes.cla()
+		except Exception as e:
+			log.debug("ShapeCollectionLegacy.clear() axes.cla() failed: %s" % str(e))
+		
 		try:
 			self.app.plotcanvas.auto_adjust_axes()
 		except Exception as e:
 			log.debug("ShapeCollectionLegacy.clear() --> %s" % str(e))
 
 		if update is True:
-			self.redraw()
+			try:
+				self.redraw()
+			except Exception as e:
+				log.debug("ShapeCollectionLegacy.clear() redraw() failed: %s" % str(e))
 
 	def redraw(self, update_colors=None):
 		"""
@@ -1357,7 +1368,11 @@ class ShapeCollectionLegacy:
 		# if we don't use this then when adding each new shape, the old ones will be added again, too
 		# if obj_type == 'utility':
 		#     self.axes.patches.clear()
-		self.axes.patches.clear()
+		try:
+			for patch in list(self.axes.patches):
+				patch.remove()
+		except Exception as e:
+			log.debug("redraw() patch removal failed: %s" % str(e))
 
 		for element in local_shapes:
 			if local_shapes[element]['visible'] is True:

@@ -725,7 +725,7 @@ pyparsing==3.1.2 ; python_full_version >= "3.10.0" and python_version < "3.11" \
 pypng==0.20220715.0 ; python_full_version >= "3.10.0" and python_version < "3.11" \
     --hash=sha256:4a43e969b8f5aaafb2a415536c1a8ec7e341cd6a3f957fd5b5f32a4cfeed902c \
     --hash=sha256:739c433ba96f078315de54c0db975aee537cbc3e1d0ae4ed9aab0ca1e427e2c1
-pyqt5-sip==12.13.0 ; python_full_version >= "3.10.0" and python_version < "3.11" \
+pyqt5-sip==12.17.0 ; python_full_version >= "3.10.0" and python_version < "3.11" \
     --hash=sha256:0f85fb633a522f04e48008de49dce1ff1d947011b48885b8428838973fbca412 \
     --hash=sha256:108a15f603e1886988c4b0d9d41cb74c9f9815bf05cefc843d559e8c298a10ce \
     --hash=sha256:1c8371682f77852256f1f2d38c41e2e684029f43330f0635870895ab01c02f6c \
@@ -747,7 +747,7 @@ pyqt5-sip==12.13.0 ; python_full_version >= "3.10.0" and python_version < "3.11"
     --hash=sha256:db228cd737f5cbfc66a3c3e50042140cb80b30b52edc5756dbbaa2346ec73137 \
     --hash=sha256:ec60162e034c42fb99859206d62b83b74f987d58937b3a82bdc07b5c3d190dec \
     --hash=sha256:fb4a5271fa3f6bc2feb303269a837a95a6d8dd16be553aa40e530de7fb81bfdf
-pyqt5==5.15.2 ; python_full_version >= "3.10.0" and python_version < "3.11" \
+pyqt5==5.15.11 ; python_full_version >= "3.10.0" and python_version < "3.11" \
     --hash=sha256:29889845688a54d62820585ad5b2e0200a36b304ff3d7a555e95599f110ba4ce \
     --hash=sha256:372b08dc9321d1201e4690182697c5e7ffb2e0770e6b4a45519025134b12e4fc \
     --hash=sha256:894ca4ae767a8d6cf5903784b71f755073c78cb8c167eecf6e4ed6b3b055ac6a \

@@ -2200,18 +2200,39 @@ class AppExcEditor(QtCore.QObject):
 		self.ui.tools_table_exc.setMaximumHeight(self.ui.tools_table_exc.getHeight())
 
 		# make sure no rows are selected so the user have to click the correct row, meaning selecting the correct tool
-		self.ui.tools_table_exc.clearSelection()
+		try:
+			self.ui.tools_table_exc.clearSelection()
+		except Exception as e:
+			self.app.log.error("clearSelection() failed: %s" % str(e))
 
 		# Remove anything else in the GUI Selected Tab
-		self.app.ui.properties_scroll_area.takeWidget()
+		try:
+			self.app.ui.properties_scroll_area.takeWidget()
+		except Exception as e:
+			self.app.log.error("takeWidget() failed: %s" % str(e))
+		
 		# Put ourselves in the GUI Properties Tab
-		self.app.ui.properties_scroll_area.setWidget(self.ui.exc_edit_widget)
+		try:
+			self.app.ui.properties_scroll_area.setWidget(self.ui.exc_edit_widget)
+		except Exception as e:
+			self.app.log.error("setWidget() failed: %s" % str(e))
+		
 		# Switch notebook to Properties page
-		self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
+		try:
+			self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
+		except Exception as e:
+			self.app.log.error("setCurrentWidget() failed: %s" % str(e))
 
 		# we reactivate the signals after the after the tool adding as we don't need to see the tool been populated
-		self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
-		self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+		try:
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+		except Exception as e:
+			self.app.log.error("itemChanged.connect() failed: %s" % str(e))
+		
+		try:
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+		except Exception as e:
+			self.app.log.error("cellPressed.connect() failed: %s" % str(e))
 
 	def on_tool_add(self, tooldia=None):
 		self.is_modified = True
@@ -2331,15 +2352,31 @@ class AppExcEditor(QtCore.QObject):
 		self.is_modified = True
 		# new_dia = None
 
-		try:
-			new_dia = float(self.ui.tools_table_exc.currentItem().text())
-		except ValueError as e:
-			log.debug("AppExcEditor.on_tool_edit() --> %s" % str(e))
+		current_item = self.ui.tools_table_exc.currentItem()
+		if current_item is None:
+			# no item selected (e.g. focus lost) — reconnect signals and bail out
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
 			return
 
 		row_of_item_changed = self.ui.tools_table_exc.currentRow()
 		# rows start with 0, tools start with 1 so we adjust the value by 1
 		key_in_tool2tooldia = row_of_item_changed + 1
+
+		# ignore edits on the summary rows (Total Drills / Total Slots)
+		if key_in_tool2tooldia not in self.tool2tooldia:
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+			return
+
+		try:
+			new_dia = float(current_item.text())
+		except ValueError as e:
+			log.debug("AppExcEditor.on_tool_edit() --> %s" % str(e))
+			self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
+			self.ui.tools_table_exc.cellPressed.connect(self.on_row_selected)
+			return
+
 		old_dia = self.tool2tooldia[key_in_tool2tooldia]
 
 		# SOURCE storage
@@ -2368,7 +2405,8 @@ class AppExcEditor(QtCore.QObject):
 		for shape_exc in source_storage.get_objects():
 			geo_list = []
 			if isinstance(shape_exc.geo, MultiLineString):
-				for subgeo in shape_exc.geo:
+				# Use .geoms for multi-part geometries to avoid Shapely deprecation warning
+				for subgeo in shape_exc.geo.geoms:
 					geo_list.append(affinity.scale(subgeo, xfact=factor, yfact=factor, origin='center'))
 				new_geo = MultiLineString(geo_list)
 			elif isinstance(shape_exc.geo, Polygon):
@@ -2790,7 +2828,12 @@ class AppExcEditor(QtCore.QObject):
 		self.set_ui()
 
 		# now that we have data, create the appGUI interface and add it to the Tool Tab
-		self.build_ui(first_run=True)
+		try:
+			self.build_ui(first_run=True)
+		except Exception as e:
+			self.app.log.error("build_ui(first_run=True) failed: %s" % str(e))
+			import traceback
+			self.app.log.error(traceback.format_exc())
 
 		# we activate this after the initial build as we don't need to see the tool been populated
 		self.ui.tools_table_exc.itemChanged.connect(self.on_tool_edit)
@@ -3659,8 +3702,13 @@ class AppExcEditor(QtCore.QObject):
 			geometry = self.active_tool.geometry
 
 		try:
-			for geo in geometry:
-				plot_elements += self.plot_shape(geometry=geo, color=color, linewidth=linewidth)
+			# Use .geoms for multi-part geometries to avoid Shapely deprecation warning
+			if hasattr(geometry, 'geoms'):
+				for geo in geometry.geoms:
+					plot_elements += self.plot_shape(geometry=geo, color=color, linewidth=linewidth)
+			else:
+				for geo in geometry:
+					plot_elements += self.plot_shape(geometry=geo, color=color, linewidth=linewidth)
 
 		# ## Non-iterable
 		except TypeError:
