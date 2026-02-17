@@ -2593,9 +2593,9 @@ class AppExcEditor(QtCore.QObject):
 		self.app.ui.e_editor_cmenu.menuAction().setVisible(False)
 		self.app.ui.grb_editor_cmenu.menuAction().setVisible(False)
 
-		# Show original geometry
+		# Show original geometry (use direct call to avoid threaded canvas.draw race)
 		if self.exc_obj:
-			self.exc_obj.visible = True
+			self.exc_obj.shapes.visible = True
 
 		# hide the UI
 		self.ui.drills_frame.hide()
@@ -2723,7 +2723,10 @@ class AppExcEditor(QtCore.QObject):
 
 		# Hide original geometry
 		self.exc_obj = exc_obj
-		exc_obj.visible = False
+		# Use direct (non-threaded) visibility change to avoid race condition
+		# with canvas.draw() calls. The property setter dispatches to a worker thread
+		# which is not safe for matplotlib's non-thread-safe FigureCanvasQTAgg.
+		exc_obj.shapes.visible = False
 
 		if self.exc_obj:
 			outname = self.exc_obj.options['name']

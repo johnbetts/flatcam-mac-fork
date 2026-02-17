@@ -3744,9 +3744,9 @@ class AppGeoEditor(QtCore.QObject):
 		# except Exception as e:
 		#     log.debug("AppGeoEditor.deactivate() --> %s" % str(e))
 
-		# Show original geometry
+		# Show original geometry (use direct call to avoid threaded canvas.draw race)
 		if self.fcgeometry:
-			self.fcgeometry.visible = True
+			self.fcgeometry.shapes.visible = True
 
 		# clear the Tree
 		self.tw.clear()
@@ -4674,9 +4674,9 @@ class AppGeoEditor(QtCore.QObject):
 
 		self.set_ui()
 
-		# Hide original geometry
+		# Hide original geometry (use direct call to avoid threaded canvas.draw race)
 		self.fcgeometry = fcgeometry
-		fcgeometry.visible = False
+		fcgeometry.shapes.visible = False
 
 		# Set selection tolerance
 		DrawToolShape.tolerance = fcgeometry.drawing_tolerance * 10

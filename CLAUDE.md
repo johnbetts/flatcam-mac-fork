@@ -47,6 +47,7 @@ python -m FlatCAM
 ### macOS-Specific Issues
 - **Exception propagation segfaults**: On macOS, unhandled Python exceptions that propagate out of PyQt5 signal handlers into Qt's C++ event loop cause segfaults. NEVER use `raise` inside signal handlers — always catch and log. This is the #1 cause of segfaults on macOS.
 - **takeWidget() focus-out cascade**: `QScrollArea.takeWidget()` generates focus-out events on child widgets (especially `QDoubleSpinBox`). Always `clearFocus()` on the focused widget BEFORE calling `takeWidget()` to prevent signal handlers firing during widget reparenting.
+- **Matplotlib is NOT thread-safe**: `FigureCanvasQTAgg.draw()` must only be called from the main thread. The `FlatCAMObj.visible` property used to dispatch to a worker thread via `worker_task.emit()` — this caused segfaults when combined with main-thread canvas operations. In legacy mode, all canvas operations must be synchronous on the main thread.
 - **Multiprocessing pool disabled**: `self.pool = None` on macOS arm64 due to segfault issues with the spawn context. Code that accesses the pool must check for None.
 - **VisPy disabled**: VisPy patches and 3D engine are disabled on macOS arm64. The app always uses legacy (Matplotlib) 2D canvas.
 - OpenGL/VisPy rendering may need patches (see `appGUI/VisPyPatches.py`)
@@ -79,3 +80,15 @@ and reconnect signals in all early-return paths.
 3. No exception guards on `build_ui()` call in `on_list_selection_change()`.
 **Fix**: Removed `raise` from `on_item_activated()`, added `clearFocus()` before `takeWidget()`,
 wrapped `build_ui()` calls in exception handlers, added guard for `self.ui is None`.
+
+### Segfault when entering Excellon/Geometry editor on macOS
+**Files**: `appEditors/AppExcEditor.py`, `appEditors/AppGeoEditor.py`, `appObjects/FlatCAMObj.py`
+**Problem**: Entering the Excellon or Geometry editor crashed with segfault on macOS.
+**Root cause**: `FlatCAMObj.visible` property setter always dispatches visibility changes to a
+worker thread via `worker_task.emit()`. The worker thread then calls `axes.cla()` and
+`canvas.draw()` on the shared matplotlib `FigureCanvasQTAgg` — but matplotlib is NOT thread-safe.
+Meanwhile, the main thread continues with `replot()` which also calls `canvas.draw()`.
+Two threads hitting `canvas.draw()` simultaneously causes the segfault.
+**Fix**: In legacy (matplotlib) mode, run visibility changes synchronously on the main thread.
+Also changed editor activate/deactivate to use direct `shapes.visible` instead of the
+threaded property setter.

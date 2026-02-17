@@ -916,11 +916,10 @@ class FlatCAMObj(QtCore.QObject):
 		return self.shapes.visible
 
 	@visible.setter
-	def visible(self, value, threaded=True):
+	def visible(self, value):
 		log.debug("FlatCAMObj.visible()")
 
 		current_visibility = self.shapes.visible
-		# self.shapes.visible = value   # maybe this is slower in VisPy? use enabled property?
 
 		def task(visibility):
 			if visibility is True:
@@ -937,10 +936,12 @@ class FlatCAMObj(QtCore.QObject):
 				except Exception:
 					pass
 
-		if threaded:
-			self.app.worker_task.emit({'fcn': task, 'params': [current_visibility]})
-		else:
+		# In legacy (matplotlib) mode, canvas.draw() is not thread-safe so we must
+		# run visibility changes on the main thread to avoid segfaults on macOS.
+		if self.app.is_legacy is True:
 			task(current_visibility)
+		else:
+			self.app.worker_task.emit({'fcn': task, 'params': [current_visibility]})
 
 	@property
 	def drawing_tolerance(self):
