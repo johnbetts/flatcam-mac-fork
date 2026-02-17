@@ -252,6 +252,11 @@ class PlotCanvasLegacy(QtCore.QObject):
 		self.canvas.setFocus()
 		self.native = self.canvas
 
+		# Batch draw mode: when True, canvas.draw() calls in adjust_axes() are suppressed.
+		# Used during editor activation to prevent rapid intermediate renders that can
+		# cause segfaults on macOS with the Qt5Agg backend.
+		self._batch_draw = False
+
 		self.adjust_axes(-10, -10, 100, 100)
 		# self.canvas.set_can_focus(True)  # For key press
 
@@ -527,7 +532,7 @@ class PlotCanvasLegacy(QtCore.QObject):
 		:param callback: Function to call
 		:type callback: func
 		:return: Connection id
-		:rtype: int
+		:rtype: int or tuple
 		"""
 		if event_name == 'mouse_move':
 			event_name = 'motion_notify_event'
@@ -536,7 +541,11 @@ class PlotCanvasLegacy(QtCore.QObject):
 		if event_name == 'mouse_release':
 			event_name = 'button_release_event'
 		if event_name == 'mouse_double_click':
-			return self.double_click.connect(callback)
+			self.double_click.connect(callback)
+			# Return a sentinel tuple so graph_event_disconnect can properly
+			# disconnect Qt signals (Qt signal.connect() returns None which
+			# makes mpl_disconnect a no-op, leaking the connection)
+			return ('_qt_signal_', 'double_click', callback)
 
 		if event_name == 'key_press':
 			event_name = 'key_press_event'
@@ -545,10 +554,24 @@ class PlotCanvasLegacy(QtCore.QObject):
 
 	def graph_event_disconnect(self, cid):
 		"""
-		Disconnect callback with the give id.
-		:param cid: Callback id.
+		Disconnect callback with the given id.
+		:param cid: Callback id (int for matplotlib events, tuple for Qt signals, None for no-op).
 		:return: None
 		"""
+		if cid is None:
+			return
+
+		# Handle Qt signal disconnection (returned by graph_event_connect for 'mouse_double_click')
+		if isinstance(cid, tuple) and len(cid) == 3 and cid[0] == '_qt_signal_':
+			signal_name = cid[1]
+			callback = cid[2]
+			signal = getattr(self, signal_name, None)
+			if signal is not None:
+				try:
+					signal.disconnect(callback)
+				except (TypeError, RuntimeError):
+					pass
+			return
 
 		self.canvas.mpl_disconnect(cid)
 
@@ -792,11 +815,13 @@ class PlotCanvasLegacy(QtCore.QObject):
 			ax.set_ylim((ymin, ymax))
 			ax.set_position([x_ratio, y_ratio, 1 - 2 * x_ratio, 1 - 2 * y_ratio])
 
-		# Sync re-draw to proper paint on form resize
-		self.canvas.draw()
-
-		# #### Temporary place-holder for cached update #####
-		self.update_screen_request.emit([0, 0, 0, 0, 0])
+		# Sync re-draw to proper paint on form resize.
+		# In batch draw mode, suppress intermediate canvas.draw() calls to prevent
+		# rapid successive renders that can segfault on macOS Qt5Agg backend.
+		if not self._batch_draw:
+			self.canvas.draw()
+			# #### Temporary place-holder for cached update #####
+			self.update_screen_request.emit([0, 0, 0, 0, 0])
 
 	def auto_adjust_axes(self, *args):
 		"""

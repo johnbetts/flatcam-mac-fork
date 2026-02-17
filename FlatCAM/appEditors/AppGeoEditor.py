@@ -3781,9 +3781,18 @@ class AppGeoEditor(QtCore.QObject):
 			self.app.plotcanvas.graph_event_disconnect(self.app.mdc)
 
 		# self.app.collection.view.clicked.disconnect()
-		self.app.ui.popmenu_copy.triggered.disconnect()
-		self.app.ui.popmenu_delete.triggered.disconnect()
-		self.app.ui.popmenu_move.triggered.disconnect()
+		try:
+			self.app.ui.popmenu_copy.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_delete.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_move.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
 
 		self.app.ui.popmenu_copy.triggered.connect(lambda: self.select_tool('copy'))
 		self.app.ui.popmenu_delete.triggered.connect(self.on_delete_btn)

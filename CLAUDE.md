@@ -48,6 +48,8 @@ python -m FlatCAM
 - **Exception propagation segfaults**: On macOS, unhandled Python exceptions that propagate out of PyQt5 signal handlers into Qt's C++ event loop cause segfaults. NEVER use `raise` inside signal handlers — always catch and log. This is the #1 cause of segfaults on macOS.
 - **takeWidget() focus-out cascade**: `QScrollArea.takeWidget()` generates focus-out events on child widgets (especially `QDoubleSpinBox`). Always `clearFocus()` on the focused widget BEFORE calling `takeWidget()` to prevent signal handlers firing during widget reparenting.
 - **Matplotlib is NOT thread-safe**: `FigureCanvasQTAgg.draw()` must only be called from the main thread. The `FlatCAMObj.visible` property used to dispatch to a worker thread via `worker_task.emit()` — this caused segfaults when combined with main-thread canvas operations. In legacy mode, all canvas operations must be synchronous on the main thread.
+- **Rapid canvas.draw() segfaults**: On macOS Qt5Agg backend, rapid successive `canvas.draw()` calls can cause segfaults. Use `PlotCanvasLegacy._batch_draw = True` to suppress intermediate draws during multi-step operations (like editor activation), then do a single `canvas.draw_idle()` at the end.
+- **Qt signal disconnect()**: Always wrap `signal.disconnect()` in `try/except (TypeError, RuntimeError)`. Calling `disconnect()` with no connections raises TypeError which, if propagating from a signal handler, causes macOS segfaults.
 - **Multiprocessing pool disabled**: `self.pool = None` on macOS arm64 due to segfault issues with the spawn context. Code that accesses the pool must check for None.
 - **VisPy disabled**: VisPy patches and 3D engine are disabled on macOS arm64. The app always uses legacy (Matplotlib) 2D canvas.
 - OpenGL/VisPy rendering may need patches (see `appGUI/VisPyPatches.py`)
@@ -82,13 +84,35 @@ and reconnect signals in all early-return paths.
 wrapped `build_ui()` calls in exception handlers, added guard for `self.ui is None`.
 
 ### Segfault when entering Excellon/Geometry editor on macOS
-**Files**: `appEditors/AppExcEditor.py`, `appEditors/AppGeoEditor.py`, `appObjects/FlatCAMObj.py`
+**Files**: `appEditors/AppExcEditor.py`, `appEditors/AppGeoEditor.py`, `appObjects/FlatCAMObj.py`,
+`appGUI/PlotCanvasLegacy.py`, `app_Main.py`, `appEditors/AppGerberEditor.py`
 **Problem**: Entering the Excellon or Geometry editor crashed with segfault on macOS.
-**Root cause**: `FlatCAMObj.visible` property setter always dispatches visibility changes to a
-worker thread via `worker_task.emit()`. The worker thread then calls `axes.cla()` and
-`canvas.draw()` on the shared matplotlib `FigureCanvasQTAgg` — but matplotlib is NOT thread-safe.
-Meanwhile, the main thread continues with `replot()` which also calls `canvas.draw()`.
-Two threads hitting `canvas.draw()` simultaneously causes the segfault.
-**Fix**: In legacy (matplotlib) mode, run visibility changes synchronously on the main thread.
-Also changed editor activate/deactivate to use direct `shapes.visible` instead of the
-threaded property setter.
+**Root causes** (three separate issues, all contributing):
+
+1. **Thread-unsafe canvas.draw()**: `FlatCAMObj.visible` property setter dispatched visibility
+   changes to a worker thread via `worker_task.emit()`. The worker thread called `axes.cla()` and
+   `canvas.draw()` while the main thread ran `replot()` — concurrent `canvas.draw()` segfaults.
+   *Fix*: In legacy mode, run visibility changes synchronously on the main thread.
+
+2. **Rapid successive canvas.draw() bombardment**: During editor activation, the
+   `deactivate()`→`activate()`→`edit_fcexcellon()` flow triggered ~12-15 intermediate
+   `canvas.draw()` calls via `ShapeCollectionLegacy.clear/visible/enabled/redraw()` →
+   `auto_adjust_axes()` → `adjust_axes()` → `canvas.draw()`. On macOS Qt5Agg backend,
+   rapid successive renders can segfault.
+   *Fix*: Added batch draw mode to `PlotCanvasLegacy` (`_batch_draw` flag) that suppresses
+   intermediate `canvas.draw()` in `adjust_axes()`. `object2editor()` enables batch mode during
+   editor setup and does a single `canvas.draw_idle()` at the end.
+
+3. **Double-click signal connection leak + unguarded disconnect() calls**:
+   `graph_event_connect('mouse_double_click', ...)` returned `None` (Qt signal.connect() returns
+   None), so `graph_event_disconnect(None)` was a no-op — the handler was never disconnected,
+   leaking connections on each editor enter/exit cycle. Additionally, signal `disconnect()` calls
+   in `connect_canvas_event_handlers()` had no try/except, allowing TypeErrors to propagate into
+   Qt's C++ event loop (segfault on macOS).
+   *Fix*: `graph_event_connect()` now returns a sentinel tuple for Qt signals, and
+   `graph_event_disconnect()` handles both matplotlib CIDs and Qt signal tuples.
+   All `disconnect()` calls wrapped in try/except.
+
+4. **`raise` in editor event handlers**: `on_exc_click_release()` had `raise` statements inside
+   exception handlers that propagated exceptions back through matplotlib's event dispatch into
+   Qt's event loop. Removed the `raise` statements.

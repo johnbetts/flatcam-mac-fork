@@ -2622,11 +2622,23 @@ class AppExcEditor(QtCore.QObject):
 			self.app.plotcanvas.graph_event_disconnect(self.app.mr)
 			self.app.plotcanvas.graph_event_disconnect(self.app.mdc)
 
-		self.app.collection.view.clicked.disconnect()
+		try:
+			self.app.collection.view.clicked.disconnect()
+		except (TypeError, RuntimeError):
+			pass
 
-		self.app.ui.popmenu_copy.triggered.disconnect()
-		self.app.ui.popmenu_delete.triggered.disconnect()
-		self.app.ui.popmenu_move.triggered.disconnect()
+		try:
+			self.app.ui.popmenu_copy.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_delete.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_move.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
 
 		self.app.ui.popmenu_copy.triggered.connect(self.exc_copy_drills)
 		self.app.ui.popmenu_delete.triggered.connect(self.on_delete_btn)
@@ -3322,7 +3334,6 @@ class AppExcEditor(QtCore.QObject):
 
 		except Exception as e:
 			log.warning("AppExcEditor.on_exc_click_release() RMB click --> Error: %s" % str(e))
-			raise
 
 		# if the released mouse button was LMB then test if we had a right-to-left selection or a left-to-right
 		# selection and then select a type of selection ("enclosing" or "touching")
@@ -3340,7 +3351,6 @@ class AppExcEditor(QtCore.QObject):
 						self.replot()
 		except Exception as e:
 			log.warning("AppExcEditor.on_exc_click_release() LMB click --> Error: %s" % str(e))
-			raise
 
 	def on_canvas_move(self, event):
 		"""

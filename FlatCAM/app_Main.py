@@ -2340,77 +2340,88 @@ class App(QtCore.QObject):
 			self.inform.emit('[WARNING_NOTCL] %s' % _("Select a Geometry, Gerber, Excellon or CNCJob Object to edit."))
 			return
 
-		if isinstance(edited_object, GeometryObject):
-			# store the Geometry Editor Toolbar visibility before entering in the Editor
-			self.geo_editor.toolbar_old_state = True if self.ui.geo_edit_toolbar.isVisible() else False
+		# In legacy (matplotlib) mode, suppress intermediate canvas.draw() calls during
+		# editor activation to prevent segfaults from rapid successive renders on macOS
+		# Qt5Agg backend. A single draw_idle() is done after all setup is complete.
+		use_batch_draw = self.is_legacy is True and hasattr(self, 'plotcanvas')
+		if use_batch_draw:
+			self.plotcanvas._batch_draw = True
 
-			# we set the notebook to hidden
-			# self.ui.splitter.setSizes([0, 1])
+		try:
+			if isinstance(edited_object, GeometryObject):
+				# store the Geometry Editor Toolbar visibility before entering in the Editor
+				self.geo_editor.toolbar_old_state = True if self.ui.geo_edit_toolbar.isVisible() else False
 
-			if edited_object.multigeo is True:
-				sel_rows = [item.row() for item in edited_object.ui.geo_tools_table.selectedItems()]
+				# we set the notebook to hidden
+				# self.ui.splitter.setSizes([0, 1])
 
-				if len(sel_rows) > 1:
-					self.inform.emit('[WARNING_NOTCL] %s' %
-									 _("Simultaneous editing of tools geometry in a MultiGeo Geometry "
-									   "is not possible.\n"
-									   "Edit only one geometry at a time."))
+				if edited_object.multigeo is True:
+					sel_rows = [item.row() for item in edited_object.ui.geo_tools_table.selectedItems()]
 
-				if not sel_rows:
-					self.inform.emit('[WARNING_NOTCL] %s.' % _("No Tool Selected"))
-					return
+					if len(sel_rows) > 1:
+						self.inform.emit('[WARNING_NOTCL] %s' %
+										 _("Simultaneous editing of tools geometry in a MultiGeo Geometry "
+										   "is not possible.\n"
+										   "Edit only one geometry at a time."))
 
-				# determine the tool dia of the selected tool
-				selected_tooldia = float(edited_object.ui.geo_tools_table.item(sel_rows[0], 1).text())
+					if not sel_rows:
+						self.inform.emit('[WARNING_NOTCL] %s.' % _("No Tool Selected"))
+						return
 
-				# now find the key in the edited_object.tools that has this tooldia
-				multi_tool = 1
-				for tool in edited_object.tools:
-					if edited_object.tools[tool]['tooldia'] == selected_tooldia:
-						multi_tool = tool
-						break
-				self.log.debug("Editing MultiGeo Geometry with tool diameter: %s" % str(multi_tool))
-				self.geo_editor.edit_fcgeometry(edited_object, multigeo_tool=multi_tool)
-			else:
-				self.log.debug("Editing SingleGeo Geometry with tool diameter.")
-				self.geo_editor.edit_fcgeometry(edited_object)
+					# determine the tool dia of the selected tool
+					selected_tooldia = float(edited_object.ui.geo_tools_table.item(sel_rows[0], 1).text())
 
-			# set call source to the Editor we go into
-			self.call_source = 'geo_editor'
-		elif isinstance(edited_object, ExcellonObject):
-			# store the Excellon Editor Toolbar visibility before entering in the Editor
-			self.exc_editor.toolbar_old_state = True if self.ui.exc_edit_toolbar.isVisible() else False
+					# now find the key in the edited_object.tools that has this tooldia
+					multi_tool = 1
+					for tool in edited_object.tools:
+						if edited_object.tools[tool]['tooldia'] == selected_tooldia:
+							multi_tool = tool
+							break
+					self.log.debug("Editing MultiGeo Geometry with tool diameter: %s" % str(multi_tool))
+					self.geo_editor.edit_fcgeometry(edited_object, multigeo_tool=multi_tool)
+				else:
+					self.log.debug("Editing SingleGeo Geometry with tool diameter.")
+					self.geo_editor.edit_fcgeometry(edited_object)
 
-			if self.ui.splitter.sizes()[0] == 0:
-				self.ui.splitter.setSizes([1, 1])
+				# set call source to the Editor we go into
+				self.call_source = 'geo_editor'
+			elif isinstance(edited_object, ExcellonObject):
+				# store the Excellon Editor Toolbar visibility before entering in the Editor
+				self.exc_editor.toolbar_old_state = True if self.ui.exc_edit_toolbar.isVisible() else False
 
-			self.exc_editor.edit_fcexcellon(edited_object)
+				if self.ui.splitter.sizes()[0] == 0:
+					self.ui.splitter.setSizes([1, 1])
 
-			# set call source to the Editor we go into
-			self.call_source = 'exc_editor'
-		elif isinstance(edited_object, GerberObject):
-			# store the Gerber Editor Toolbar visibility before entering in the Editor
-			self.grb_editor.toolbar_old_state = True if self.ui.grb_edit_toolbar.isVisible() else False
+				self.exc_editor.edit_fcexcellon(edited_object)
 
-			if self.ui.splitter.sizes()[0] == 0:
-				self.ui.splitter.setSizes([1, 1])
+				# set call source to the Editor we go into
+				self.call_source = 'exc_editor'
+			elif isinstance(edited_object, GerberObject):
+				# store the Gerber Editor Toolbar visibility before entering in the Editor
+				self.grb_editor.toolbar_old_state = True if self.ui.grb_edit_toolbar.isVisible() else False
 
-			self.grb_editor.edit_fcgerber(edited_object)
+				if self.ui.splitter.sizes()[0] == 0:
+					self.ui.splitter.setSizes([1, 1])
 
-			# set call source to the Editor we go into
-			self.call_source = 'grb_editor'
+				self.grb_editor.edit_fcgerber(edited_object)
 
-			# reset the following variables so the UI is built again after edit
-			edited_object.ui_build = False
-		elif isinstance(edited_object, CNCJobObject):
+				# set call source to the Editor we go into
+				self.call_source = 'grb_editor'
 
-			if self.ui.splitter.sizes()[0] == 0:
-				self.ui.splitter.setSizes([1, 1])
+				# reset the following variables so the UI is built again after edit
+				edited_object.ui_build = False
+			elif isinstance(edited_object, CNCJobObject):
 
-			# set call source to the Editor we go into
-			self.call_source = 'gcode_editor'
+				if self.ui.splitter.sizes()[0] == 0:
+					self.ui.splitter.setSizes([1, 1])
 
-			self.gcode_editor.edit_fcgcode(edited_object)
+				# set call source to the Editor we go into
+				self.call_source = 'gcode_editor'
+
+				self.gcode_editor.edit_fcgcode(edited_object)
+		finally:
+			if use_batch_draw:
+				self.plotcanvas._batch_draw = False
 
 		# make sure that we can't select another object while in Editor Mode:
 		self.ui.project_frame.setDisabled(True)
@@ -2447,6 +2458,12 @@ class App(QtCore.QObject):
 		self.log.debug("######################### Starting the EDITOR ################################")
 		# Temporarily disabled signal emit that causes crashes on macOS
 		# self.inform.emit('[WARNING_NOTCL] %s' % _("Editor is activated ..."))
+
+		# Perform a single deferred canvas draw now that all editor setup is complete.
+		# This replaces the ~12+ intermediate canvas.draw() calls that were suppressed
+		# during batch draw mode, rendering only the final consistent state.
+		if self.is_legacy is True and hasattr(self, 'plotcanvas'):
+			self.plotcanvas.canvas.draw_idle()
 
 		self.should_we_save = True
 

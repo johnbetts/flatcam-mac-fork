@@ -3661,11 +3661,23 @@ class AppGerberEditor(QtCore.QObject):
 			self.canvas.graph_event_disconnect(self.app.mr)
 			self.canvas.graph_event_disconnect(self.app.mdc)
 
-		self.app.collection.view.clicked.disconnect()
+		try:
+			self.app.collection.view.clicked.disconnect()
+		except (TypeError, RuntimeError):
+			pass
 
-		self.app.ui.popmenu_copy.triggered.disconnect()
-		self.app.ui.popmenu_delete.triggered.disconnect()
-		self.app.ui.popmenu_move.triggered.disconnect()
+		try:
+			self.app.ui.popmenu_copy.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_delete.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
+		try:
+			self.app.ui.popmenu_move.triggered.disconnect()
+		except (TypeError, RuntimeError):
+			pass
 
 		self.app.ui.popmenu_copy.triggered.connect(self.on_copy_button)
 		self.app.ui.popmenu_delete.triggered.connect(self.on_delete_btn)
