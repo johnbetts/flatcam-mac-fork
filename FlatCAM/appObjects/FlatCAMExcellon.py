@@ -443,7 +443,10 @@ class ExcellonObject(FlatCAMObj, Excellon):
 			self.ui.generate_milling_slots_button.setDisabled(False)
 
 		# update the milling section
-		self.on_row_selection_change()
+		try:
+			self.on_row_selection_change()
+		except Exception as e:
+			log.debug("ExcellonObject.build_ui() on_row_selection_change failed: %s" % str(e))
 
 		self.ui_connect()
 

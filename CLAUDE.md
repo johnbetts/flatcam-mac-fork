@@ -45,6 +45,10 @@ python -m FlatCAM
 - **Signal reconnection**: When disconnecting signals in handlers (to prevent re-entrant calls), always reconnect them in ALL exit paths (including early returns and error handling).
 
 ### macOS-Specific Issues
+- **Exception propagation segfaults**: On macOS, unhandled Python exceptions that propagate out of PyQt5 signal handlers into Qt's C++ event loop cause segfaults. NEVER use `raise` inside signal handlers — always catch and log. This is the #1 cause of segfaults on macOS.
+- **takeWidget() focus-out cascade**: `QScrollArea.takeWidget()` generates focus-out events on child widgets (especially `QDoubleSpinBox`). Always `clearFocus()` on the focused widget BEFORE calling `takeWidget()` to prevent signal handlers firing during widget reparenting.
+- **Multiprocessing pool disabled**: `self.pool = None` on macOS arm64 due to segfault issues with the spawn context. Code that accesses the pool must check for None.
+- **VisPy disabled**: VisPy patches and 3D engine are disabled on macOS arm64. The app always uses legacy (Matplotlib) 2D canvas.
 - OpenGL/VisPy rendering may need patches (see `appGUI/VisPyPatches.py`)
 - PlotCanvasLegacy has macOS-specific draw handling (see `appGUI/PlotCanvasLegacy.py`)
 
@@ -63,3 +67,15 @@ python -m FlatCAM
 Also, clicking on summary rows caused `KeyError` in `tool2tooldia` lookup.
 **Fix**: Added `None` check for `currentItem()`, validate row index against `tool2tooldia`,
 and reconnect signals in all early-return paths.
+
+### Double-click on Excellon file in Projects causes segfault
+**Files**: `appObjects/ObjectCollection.py`, `appObjects/FlatCAMObj.py`, `appObjects/FlatCAMExcellon.py`
+**Problem**: Double-clicking an Excellon object in the project tree caused a segfault on macOS.
+**Root causes**:
+1. `on_item_activated()` caught exceptions from `build_ui()` but re-raised them with `raise`,
+   letting the exception propagate into Qt's C++ event loop — segfault on macOS.
+2. `FlatCAMObj.build_ui()` called `takeWidget()` which triggers focus-out events on child
+   widgets (FCDoubleSpinner), firing signal handlers during widget reparenting.
+3. No exception guards on `build_ui()` call in `on_list_selection_change()`.
+**Fix**: Removed `raise` from `on_item_activated()`, added `clearFocus()` before `takeWidget()`,
+wrapped `build_ui()` calls in exception handlers, added guard for `self.ui is None`.

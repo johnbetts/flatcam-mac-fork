@@ -213,18 +213,19 @@ class FlatCAMObj(QtCore.QObject):
 		log.debug(str(inspect.stack()[1][3]) + "--> FlatCAMObj.build_ui()")
 
 		try:
-			# HACK: disconnect the scale entry signal since on focus out event will trigger an undesired scale()
-			# it seems that the takewidget() does generate a focus out event for the QDoubleSpinbox ...
-			# and reconnect after the takeWidget() is done
-			# self.ui.scale_entry.returnPressed.disconnect(self.on_scale_button_click)
+			# Clear focus from any active widget before takeWidget() to prevent
+			# focus-out events from triggering signal handlers during reparenting,
+			# which can cause segfaults on macOS
+			focused = self.app.qapp.focusWidget()
+			if focused is not None:
+				focused.clearFocus()
+
 			self.app.ui.properties_scroll_area.takeWidget()
-			# self.ui.scale_entry.returnPressed.connect(self.on_scale_button_click)
 		except Exception as e:
 			self.app.log.debug("FlatCAMObj.build_ui() --> Nothing to remove: %s" % str(e))
 
-		self.app.ui.properties_scroll_area.setWidget(self.ui)
-		# self.ui.setMinimumWidth(100)
-		# self.ui.setMaximumWidth(self.app.ui.properties_tab.sizeHint().width())
+		if self.ui is not None:
+			self.app.ui.properties_scroll_area.setWidget(self.ui)
 
 		self.muted_ui = False
 

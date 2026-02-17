@@ -966,7 +966,10 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 			return
 
 		if obj:
-			obj.build_ui()
+			try:
+				obj.build_ui()
+			except Exception as e:
+				log.debug("on_list_selection_change() build_ui failed: %s" % str(e))
 
 	def on_item_activated(self, index):
 		"""
@@ -975,7 +978,11 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 		:param index: Index of the item in the list.
 		:return: None
 		"""
-		a_idx = index.internalPointer().obj
+		try:
+			a_idx = index.internalPointer().obj
+		except AttributeError:
+			return
+
 		if a_idx is None:
 			return
 		else:
@@ -983,7 +990,7 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 				a_idx.build_ui()
 			except Exception as e:
 				self.app.inform.emit('[ERROR] %s: %s' % (_("Cause of error"), str(e)))
-				raise
+				log.debug("on_item_activated() build_ui failed: %s" % str(e))
 
 	def get_list(self):
 		"""
@@ -1002,10 +1009,13 @@ class ObjectCollection(QtCore.QAbstractItemModel):
 		self.dataChanged.emit(QtCore.QModelIndex(), QtCore.QModelIndex())
 
 	def on_row_activated(self, index):
-		if index.isValid():
-			if index.internalPointer().parent_item != self.root_item:
-				self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
-		self.on_item_activated(index)
+		try:
+			if index.isValid():
+				if index.internalPointer().parent_item != self.root_item:
+					self.app.ui.notebook.setCurrentWidget(self.app.ui.properties_tab)
+			self.on_item_activated(index)
+		except Exception as e:
+			log.debug("on_row_activated() failed: %s" % str(e))
 
 	def on_row_selected(self, obj_name):
 		"""
