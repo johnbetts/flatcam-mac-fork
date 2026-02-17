@@ -50,6 +50,7 @@ python -m FlatCAM
 - **Matplotlib is NOT thread-safe**: `FigureCanvasQTAgg.draw()` must only be called from the main thread. The `FlatCAMObj.visible` property used to dispatch to a worker thread via `worker_task.emit()` — this caused segfaults when combined with main-thread canvas operations. In legacy mode, all canvas operations must be synchronous on the main thread.
 - **Rapid canvas.draw() segfaults**: On macOS Qt5Agg backend, rapid successive `canvas.draw()` calls can cause segfaults. Use `PlotCanvasLegacy._batch_draw = True` to suppress intermediate draws during multi-step operations (like editor activation), then do a single `canvas.draw_idle()` at the end.
 - **Qt signal disconnect()**: Always wrap `signal.disconnect()` in `try/except (TypeError, RuntimeError)`. Calling `disconnect()` with no connections raises TypeError which, if propagating from a signal handler, causes macOS segfaults.
+- **Worker thread + deleted Qt widgets**: Worker threads that emit signals carrying Qt widget references (tree items, etc.) can deliver those signals after the widgets have been destroyed (e.g., when the user enters an editor). Always use `sip.isdeleted()` to check widget validity before accessing, and check `app.call_source` to skip work when in editor mode.
 - **Multiprocessing pool disabled**: `self.pool = None` on macOS arm64 due to segfault issues with the spawn context. Code that accesses the pool must check for None.
 - **VisPy disabled**: VisPy patches and 3D engine are disabled on macOS arm64. The app always uses legacy (Matplotlib) 2D canvas.
 - OpenGL/VisPy rendering may need patches (see `appGUI/VisPyPatches.py`)
@@ -116,3 +117,13 @@ wrapped `build_ui()` calls in exception handlers, added guard for `self.ui is No
 4. **`raise` in editor event handlers**: `on_exc_click_release()` had `raise` statements inside
    exception handlers that propagated exceptions back through matplotlib's event dispatch into
    Qt's event loop. Removed the `raise` statements.
+
+5. **Worker thread race on properties tree widget**: `build_ui()` dispatches a worker thread
+   (via `add_properties_items()` → `job_thread`) to calculate object dimensions. When done, it
+   emits `calculations_finished` with a `dims` tree widget item. If the user enters an editor
+   before the worker finishes, the properties UI is replaced, destroying the tree widget. When
+   `update_area_chull()` receives the signal and tries `treeWidget.addChild(location, ...)`,
+   it accesses a deleted Qt C++ object → segfault.
+   *Fix*: Guard `update_area_chull()` with `call_source != 'app'` check (skip in editor mode),
+   `sip.isdeleted()` checks on the tree widget and location item, and try/except wrapper.
+   Also guard the signal emission in `job_thread` with the same `call_source` check.
