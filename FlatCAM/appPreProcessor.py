@@ -6,6 +6,7 @@
 # MIT Licence                                              #
 # ##########################################################
 
+import math
 from abc import ABCMeta, abstractmethod
 
 # module-root dictionary of preprocessors
