@@ -10585,8 +10585,8 @@ class MenuFileHandlers(QtCore.QObject):
 		try:
 			d = json.load(f, object_hook=dict2obj)
 		except Exception as e:
-			self.app.log.error(
-				"Failed to parse project file, trying to see if it loads as an LZMA archive: %s because %s" %
+			self.app.log.debug(
+				"Project file is not plain JSON, trying LZMA archive: %s because %s" %
 				(filename, str(e)))
 			f.close()
 
