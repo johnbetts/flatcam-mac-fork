@@ -45,7 +45,13 @@ def PolygonPath(polygon):
 		vals[0] = Path.MOVETO
 		return vals
 
-	vertices = concatenate([asarray(this.exterior)] + [asarray(r) for r in this.interiors])
+	def ring_coords(ring):
+		# Use .coords if available (Shapely geometry) to avoid the deprecated
+		# array interface that triggers ShapelyDeprecationWarning in Shapely 1.8+
+		coords = getattr(ring, 'coords', ring)
+		return asarray(coords)
+
+	vertices = concatenate([ring_coords(this.exterior)] + [ring_coords(r) for r in this.interiors])
 	codes = concatenate([coding(this.exterior)] + [coding(r) for r in this.interiors])
 	return Path(vertices, codes)
 
