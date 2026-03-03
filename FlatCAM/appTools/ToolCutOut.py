@@ -2299,7 +2299,7 @@ class CutoutUI:
 		grid0.addWidget(self.gaps, 42, 1)
 
 		# Buttons
-		self.ff_cutout_object_btn = FCButton(_("Generate Geometry"))
+		self.ff_cutout_object_btn = FCButton(_("Generate Geometry (Freeform)"))
 		self.ff_cutout_object_btn.setIcon(QtGui.QIcon(':/images/irregular32.png'))
 		self.ff_cutout_object_btn.setToolTip(
 			_("Cutout the selected object.\n"
@@ -2314,7 +2314,7 @@ class CutoutUI:
 								""")
 		grid0.addWidget(self.ff_cutout_object_btn, 44, 0, 1, 2)
 
-		self.rect_cutout_object_btn = FCButton(_("Generate Geometry"))
+		self.rect_cutout_object_btn = FCButton(_("Generate Geometry (Rectangular)"))
 		self.rect_cutout_object_btn.setIcon(QtGui.QIcon(':/images/rectangle32.png'))
 		self.rect_cutout_object_btn.setToolTip(
 			_("Cutout the selected object.\n"
