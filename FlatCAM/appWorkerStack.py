@@ -31,9 +31,15 @@ class WorkerStack(QtCore.QObject):
 			self.threads.append(thread)
 			self.load[worker.name] = 0
 
-	def __del__(self):
+	def stop(self):
+		"""Cleanly stop all worker threads. Call this during application shutdown."""
 		for thread in self.threads:
-			thread.terminate()
+			thread.quit()
+		for thread in self.threads:
+			thread.wait(2000)  # wait up to 2s per thread
+
+	def __del__(self):
+		self.stop()
 
 	def add_task(self, task):
 		worker_name = min(self.load, key=self.load.get)

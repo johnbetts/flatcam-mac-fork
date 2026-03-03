@@ -3675,10 +3675,17 @@ class App(QtCore.QObject):
 		self.clear_pool()
 		self.log.debug('Pool cleared.')
 
-		# quit app by signalling for self.kill_app() method
-		# self.close_app_signal.emit()
+		# Stop worker threads cleanly before quitting
+		try:
+			self.workers.stop()
+		except Exception as e:
+			self.log.debug('WorkerStack.stop() error: %s' % str(e))
+
+		# quit app - qApp.quit() stops the event loop and returns from app.exec_()
+		# in FlatCAM.py, which then calls sys.exit() with the return code.
+		# Do NOT call sys.exit() here — raising SystemExit from inside a Qt signal
+		# handler propagates into Qt's C++ event loop and causes a crash on macOS.
 		QtWidgets.qApp.quit()
-		sys.exit(0)
 
 		# When the main event loop is not started yet in which case the qApp.quit() will do nothing
 		# we use the following command
